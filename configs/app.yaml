@@ -1,0 +1,8 @@
+app:
+  name: "rukz-educational-rag-assistant"
+  environment: "local"
+  default_language: "auto"
+  supported_languages:
+    - "ru"
+    - "kk"
+

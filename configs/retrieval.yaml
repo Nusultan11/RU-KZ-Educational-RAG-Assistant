@@ -1,0 +1,13 @@
+language_router:
+  default_language: "auto"
+  fallback_strategy: "search_both"
+
+retriever:
+  top_k: 20
+  final_k: 5
+  index_strategy: "separate_by_language"
+
+reranker:
+  enabled: false
+  model_name: null
+

@@ -1,0 +1,17 @@
+evaluation:
+  output_dir: "artifacts/evaluation"
+  fixed_eval_split_required: true
+
+retrieval_metrics:
+  - "recall@5"
+  - "recall@10"
+  - "mrr@10"
+  - "ndcg@10"
+
+rag_metrics:
+  - "faithfulness"
+  - "answer_relevance"
+  - "context_precision"
+  - "source_correctness"
+  - "language_consistency"
+

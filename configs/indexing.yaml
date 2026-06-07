@@ -1,0 +1,13 @@
+indexing:
+  enabled: false
+  output_root: "data/indexes"
+
+embedding:
+  model_name: "intfloat/multilingual-e5-base"
+  normalize_embeddings: true
+  batch_size: 32
+
+vector_store:
+  provider: "faiss"
+  index_strategy: "separate_by_language"
+

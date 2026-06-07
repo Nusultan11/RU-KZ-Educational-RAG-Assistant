@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.env
+.venv/
+venv/
+
+# Local outputs
+logs/
+artifacts/
+models/
+checkpoints/
+indexes/
+data/interim/
+data/processed/
+data/eval/
+data/indexes/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

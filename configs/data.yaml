@@ -1,0 +1,11 @@
+datasets:
+  registry_path: "configs/data.yaml"
+  raw_root: "data/raw"
+  interim_root: "data/interim"
+  processed_root: "data/processed"
+  evaluation_root: "data/eval"
+
+contracts:
+  document_schema: "Document"
+  chunk_schema: "Chunk"
+

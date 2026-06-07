@@ -1,0 +1,7 @@
+logging:
+  level: "INFO"
+  format: "json"
+  include_trace_id: true
+  include_component: true
+  include_language: true
+

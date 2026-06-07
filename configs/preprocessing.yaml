@@ -1,0 +1,15 @@
+preprocessing:
+  enabled: false
+  requires_eda_report: true
+
+text_cleaning:
+  remove_html: true
+  normalize_spaces: true
+  min_text_chars: 50
+  max_text_chars: 20000
+
+chunking:
+  strategy: "recursive"
+  chunk_size: 500
+  chunk_overlap: 80
+

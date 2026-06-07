@@ -1,0 +1,8 @@
+eda:
+  profile_columns: true
+  profile_nulls: true
+  profile_duplicates: true
+  profile_text_lengths: true
+  profile_languages: true
+  output_dir: "artifacts/eda"
+
