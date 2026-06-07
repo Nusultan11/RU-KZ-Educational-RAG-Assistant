@@ -11,6 +11,18 @@ __pycache__/
 .venv/
 venv/
 
+# Local Codex and agent instructions
+AGENTS.md
+AGENT.md
+.codex/
+
+# Local MCP configuration and server files
+.mcp/
+mcp/
+mcp.json
+mcp*.json
+docs/mcp/
+
 # Local outputs
 logs/
 artifacts/
@@ -27,4 +39,3 @@ data/indexes/
 Thumbs.db
 .idea/
 .vscode/
-

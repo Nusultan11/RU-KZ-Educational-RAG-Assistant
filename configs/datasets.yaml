@@ -1,0 +1,65 @@
+datasets:
+  kazakh_wiki_rag:
+    name: "Kazakh-Wiki-RAG-Dataset"
+    language: "kk"
+    dataset_type: "retrieval"
+    role: "kazakh_retrieval_corpus"
+    expected_fields:
+      query: null
+      positive_context: null
+      answer: null
+      title: null
+      source: null
+      metadata: null
+    eda_required: true
+    preprocessing_allowed_before_eda: false
+
+  sberquad_retrieval:
+    name: "sberquad-retrieval"
+    language: "ru"
+    dataset_type: "retrieval"
+    role: "russian_retrieval_dataset"
+    expected_fields:
+      query: null
+      positive_context: null
+      answer: null
+      title: null
+      source: null
+      metadata: null
+    eda_required: true
+    preprocessing_allowed_before_eda: false
+
+  kazakh_instruction_v2:
+    name: "kazakh-instruction-v2"
+    language: "kk"
+    dataset_type: "instruction"
+    role: "future_kazakh_instruction_analysis"
+    expected_fields:
+      instruction: null
+      input: null
+      output: null
+      source: null
+      metadata: null
+    eda_required: true
+    qlora_allowed_before_rag_evaluation: false
+
+  russian_instructions_2:
+    name: "russian_instructions_2"
+    language: "ru"
+    dataset_type: "instruction"
+    role: "future_russian_instruction_analysis"
+    expected_fields:
+      instruction: null
+      input: null
+      output: null
+      source: null
+      metadata: null
+    eda_required: true
+    qlora_allowed_before_rag_evaluation: false
+
+rules:
+  do_not_mix_retrieval_and_instruction_data: true
+  raw_data_read_requires_user_approval: true
+  preprocessing_requires_eda_report: true
+  qlora_requires_baseline_rag_and_error_analysis: true
+
