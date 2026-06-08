@@ -24,6 +24,9 @@ mcp*.json
 docs/mcp/
 
 # Local outputs
+data/
+reports/
+.cache/
 logs/
 artifacts/
 models/

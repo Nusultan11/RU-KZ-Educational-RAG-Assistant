@@ -46,6 +46,12 @@ Stage 1: Project Control.
 - `docs/project_control/dataset_inventory.md`
 - `docs/project_control/eda_plan.md`
 
+## Download datasets
+
+```bash
+python scripts/download_datasets.py --config configs/datasets.yaml --output-dir data/raw/hf
+```
+
 ## Основное правило
 
 Нельзя выбирать `chunk_size`, embedding model, reranker или QLoRA до EDA и retrieval evaluation.
