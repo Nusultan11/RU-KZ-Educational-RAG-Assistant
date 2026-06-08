@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+
+def configure_stdout() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,6 +48,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=None,
         help="Number of results to return. Defaults to config retriever.top_k.",
+    )
+    parser.add_argument(
+        "--deduplicate-results",
+        choices=("true", "false"),
+        default="true",
+        help="Deduplicate returned results by text. Defaults to true.",
     )
     return parser.parse_args()
 
@@ -124,6 +136,34 @@ def search(index: Any, query_embedding: Any, top_k: int) -> list[tuple[int, floa
     return results
 
 
+def normalize_text_for_deduplication(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
+def deduplicate_results(
+    results: list[tuple[int, float]],
+    metadata: list[dict[str, Any]],
+) -> list[tuple[int, float]]:
+    seen_texts: set[str] = set()
+    deduplicated: list[tuple[int, float]] = []
+
+    for position, score in results:
+        if position >= len(metadata):
+            raise IndexError(
+                f"Index returned position={position}, but metadata has {len(metadata)} records.",
+            )
+
+        text = str(metadata[position].get("text", "")).strip()
+        dedup_key = normalize_text_for_deduplication(text)
+        if dedup_key in seen_texts:
+            continue
+
+        seen_texts.add(dedup_key)
+        deduplicated.append((position, score))
+
+    return deduplicated
+
+
 def print_results(
     language: str,
     query: str,
@@ -147,6 +187,7 @@ def print_results(
 
 
 def main() -> int:
+    configure_stdout()
     args = parse_args()
     config = load_config(args.config)
     require_supported_backend(config)
@@ -165,7 +206,13 @@ def main() -> int:
         model_name=config["retriever"]["embedding_model"],
         normalize_embeddings=bool(config["retriever"]["normalize_embeddings"]),
     )
-    results = search(index=index, query_embedding=query_embedding, top_k=top_k)
+    deduplicate_results_enabled = args.deduplicate_results == "true"
+    search_k = top_k * 3 if deduplicate_results_enabled else top_k
+    results = search(index=index, query_embedding=query_embedding, top_k=search_k)
+    if deduplicate_results_enabled:
+        results = deduplicate_results(results, metadata)
+    results = results[:top_k]
+
     print_results(args.lang, args.query, results, metadata)
     return 0
 
