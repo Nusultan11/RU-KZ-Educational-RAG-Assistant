@@ -1,61 +1,46 @@
-# Инвентарь датасетов
+# Dataset Inventory
 
-## Назначение
+## Цель
 
-Этот документ фиксирует роль каждого датасета до доступа к данным, EDA, preprocessing или training.
+Разделить датасеты по ролям до EDA, preprocessing и RAG.
 
-Инвентарь не является результатом анализа данных. Это планировочный документ: он описывает, для чего каждый датасет нужен в проекте и какие вопросы должен закрыть будущий EDA.
+## Датасеты
 
-## Роли датасетов
+| Датасет | Роль |
+| --- | --- |
+| `Kazakh-Wiki-RAG-Dataset` | казахский retrieval |
+| `sberquad-retrieval` | русский retrieval |
+| `kazakh-instruction-v2` | казахский instruction/SFT |
+| `russian_instructions_2` | русский instruction/SFT |
 
-| Датасет | Язык | Основная роль | Ожидаемое использование |
-| --- | --- | --- | --- |
-| `Kazakh-Wiki-RAG-Dataset` | `kk` | Retrieval corpus | Казахский поиск документов/контекста для baseline RAG |
-| `sberquad-retrieval` | `ru` | Retrieval dataset | Русская retrieval evaluation и baseline RAG |
-| `kazakh-instruction-v2` | `kk` | Instruction dataset | Будущий анализ казахского instruction/SFT стиля только после RAG gates |
-| `russian_instructions_2` | `ru` | Instruction dataset | Будущий анализ русского instruction/SFT стиля только после RAG gates |
+## Правило
 
-## Правило разделения
+Retrieval-данные не смешиваем с instruction-данными.
 
-Retrieval-датасеты и instruction-датасеты нельзя смешивать.
-
-Retrieval-датасеты описывают задачу:
+Retrieval-данные нужны для:
 
 ```text
 query -> relevant context
 ```
 
-Instruction-датасеты описывают задачу:
+Instruction-данные нужны для:
 
 ```text
 instruction/input -> output
 ```
 
-У них разные схемы, проверки качества, метрики и риски.
+## Что проверить в EDA
 
-## Вопросы для retrieval-датасетов
+Для retrieval-датасетов:
 
-Для каждого retrieval-датасета EDA должен ответить:
+- есть ли query;
+- есть ли positive context;
+- есть ли source;
+- можно ли считать Recall@k, MRR, nDCG.
 
-- какие колонки содержат query, answer, context, document, title, source и metadata;
-- есть ли train, validation и test split;
-- есть ли явный positive context для каждого query;
-- есть ли negative examples или можно ли их построить;
-- можно ли честно считать Recall@k, MRR и nDCG;
-- разделены ли русские и казахские записи;
-- доступны ли стабильные source citations.
+Для instruction-датасетов:
 
-## Вопросы для instruction-датасетов
-
-Для каждого instruction-датасета EDA должен ответить:
-
-- какие колонки содержат instruction, input, output, language и metadata;
-- являются ли ответы полными и образовательными;
-- есть ли дубли;
-- есть ли unsafe, toxic, malformed или low-value записи;
-- есть ли train, validation и test split;
-- пригоден ли датасет для будущего QLoRA только после baseline RAG, evaluation и error analysis.
-
-## Решение Stage 1
-
-На этом этапе датасеты разрешены только для планирования. Файлы данных нельзя открывать, пока пользователь явно не утвердит scope для EDA implementation.
+- есть ли instruction/input/output;
+- нет ли дублей;
+- нет ли мусорных ответов;
+- пригодны ли данные для будущего SFT/QLoRA.
