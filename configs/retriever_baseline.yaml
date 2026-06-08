@@ -1,0 +1,32 @@
+retriever:
+  name: baseline_multilingual_retriever
+  embedding_model: intfloat/multilingual-e5-base
+  vector_backend: faiss
+  top_k: 5
+  normalize_embeddings: true
+
+chunking:
+  enabled: false
+  reason: "Baseline starts without chunking based on EDA: KZ passages are <=650 chars, RU p95 is ~1204 chars; long RU tail will be handled later."
+
+data:
+  russian:
+    source: kaengreg/sberquad-retrieval
+    config: corpus
+    split: train
+    id_column: _id
+    text_column: text
+
+  kazakh:
+    source: shyngys879/Kazakh-Wiki-RAG-Dataset
+    file: train_triplets.csv
+    query_column: anchor
+    text_column: positive
+    negative_column: negative
+    source_column: source
+
+language:
+  supported_languages:
+    - ru
+    - kk
+  router: simple_rule_based
