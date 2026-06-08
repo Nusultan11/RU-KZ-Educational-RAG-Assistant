@@ -327,6 +327,15 @@ def save_index(path: Path, index: Any) -> None:
     faiss.write_index(index, str(path))
 
 
+def index_artifact_paths(output_dir: Path, language: str) -> tuple[Path, Path]:
+    return output_dir / f"{language}.index", output_dir / f"{language}_metadata.jsonl"
+
+
+def index_artifacts_exist(output_dir: Path, language: str) -> bool:
+    index_path, metadata_path = index_artifact_paths(output_dir, language)
+    return index_path.exists() and metadata_path.exists()
+
+
 def build_language_index(
     language: str,
     documents: list[Document],
@@ -334,16 +343,31 @@ def build_language_index(
     output_dir: Path,
     batch_size: int,
 ) -> None:
-    LOGGER.info("Building %s index from %d documents", language, len(documents))
+    index_path, metadata_path = index_artifact_paths(output_dir, language)
+    LOGGER.info("[BUILD] %s index from %d documents", language, len(documents))
     index = build_faiss_index(
         documents=documents,
         model_name=config["retriever"]["embedding_model"],
         normalize_embeddings=bool(config["retriever"]["normalize_embeddings"]),
         batch_size=batch_size,
     )
-    save_index(output_dir / f"{language}.index", index)
-    write_metadata(output_dir / f"{language}_metadata.jsonl", documents)
-    LOGGER.info("Saved %s index and metadata to %s", language, output_dir)
+    save_index(index_path, index)
+    write_metadata(metadata_path, documents)
+    LOGGER.info("[DONE] %s index and metadata saved to %s", language, output_dir)
+
+
+def build_language_index_if_needed(
+    language: str,
+    documents: list[Document],
+    config: dict[str, Any],
+    output_dir: Path,
+    batch_size: int,
+) -> None:
+    if index_artifacts_exist(output_dir, language):
+        LOGGER.info("[SKIP] %s index already exists", language)
+        return
+
+    build_language_index(language, documents, config, output_dir, batch_size)
 
 
 def main() -> int:
@@ -358,11 +382,29 @@ def main() -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    ru_documents = load_russian_documents(config["data"]["russian"], args.data_dir)
-    kk_documents = load_kazakh_documents(config["data"]["kazakh"], args.data_dir)
+    if index_artifacts_exist(args.output_dir, "ru"):
+        LOGGER.info("[SKIP] ru index already exists")
+    else:
+        ru_documents = load_russian_documents(config["data"]["russian"], args.data_dir)
+        build_language_index_if_needed(
+            "ru",
+            ru_documents,
+            config,
+            args.output_dir,
+            args.batch_size,
+        )
 
-    build_language_index("ru", ru_documents, config, args.output_dir, args.batch_size)
-    build_language_index("kk", kk_documents, config, args.output_dir, args.batch_size)
+    if index_artifacts_exist(args.output_dir, "kk"):
+        LOGGER.info("[SKIP] kk index already exists")
+    else:
+        kk_documents = load_kazakh_documents(config["data"]["kazakh"], args.data_dir)
+        build_language_index_if_needed(
+            "kk",
+            kk_documents,
+            config,
+            args.output_dir,
+            args.batch_size,
+        )
 
     LOGGER.info("Baseline retrieval indexes built successfully")
     return 0
