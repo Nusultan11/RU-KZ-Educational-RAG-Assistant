@@ -1,0 +1,10 @@
+generator:
+  name: baseline_transformers_generator
+  backend: transformers_pipeline
+  model_name: Qwen/Qwen2.5-1.5B-Instruct
+  max_new_tokens: 512
+  temperature: 0.2
+  do_sample: false
+  device_map: auto
+  torch_dtype: auto
+  streaming: false
