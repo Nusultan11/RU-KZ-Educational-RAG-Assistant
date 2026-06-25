@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 from .prompt_builder import RAGPrompt
@@ -35,6 +36,18 @@ class TransformersGenerator:
         max_new_tokens: int = 512,
         temperature: float = 0.2,
         do_sample: bool = False,
+        repetition_penalty: float = 1.15,
+        no_repeat_ngram_size: int = 4,
+        top_p: float | None = None,
+        top_k: int | None = None,
+        use_chat_template: bool = True,
+        system_message: str = (
+            "You are a strict multilingual educational RAG assistant. "
+            "Follow the requested answer language and answer format exactly."
+        ),
+        normalize_answer_format: bool = True,
+        fallback_source: str = "[1]",
+        max_answer_sentences: int = 3,
         device_map: str | None = "auto",
         torch_dtype: str | None = "auto",
     ) -> None:
@@ -45,30 +58,53 @@ class TransformersGenerator:
             raise ValueError("max_new_tokens must be positive.")
         if temperature < 0:
             raise ValueError("temperature must be non-negative.")
+        if repetition_penalty <= 0:
+            raise ValueError("repetition_penalty must be positive.")
+        if no_repeat_ngram_size < 0:
+            raise ValueError("no_repeat_ngram_size must be non-negative.")
+        if top_p is not None and not 0 < top_p <= 1:
+            raise ValueError("top_p must be in the range (0, 1].")
+        if top_k is not None and top_k < 0:
+            raise ValueError("top_k must be non-negative.")
+        system_message = system_message.strip()
+        if use_chat_template and not system_message:
+            raise ValueError("system_message must not be empty when chat template is enabled.")
+        fallback_source = fallback_source.strip()
+        if normalize_answer_format and not fallback_source:
+            raise ValueError("fallback_source must not be empty when answer normalization is enabled.")
+        if max_answer_sentences <= 0:
+            raise ValueError("max_answer_sentences must be positive.")
 
         self.model_name = model_name
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
         self.do_sample = do_sample
+        self.repetition_penalty = repetition_penalty
+        self.no_repeat_ngram_size = no_repeat_ngram_size
+        self.top_p = top_p
+        self.top_k = top_k
+        self.use_chat_template = use_chat_template
+        self.system_message = system_message
+        self.normalize_answer_format = normalize_answer_format
+        self.fallback_source = fallback_source
+        self.max_answer_sentences = max_answer_sentences
         self.device_map = device_map
         self.torch_dtype = torch_dtype
         self._pipeline: Any | None = None
+        self._tokenizer: Any | None = None
 
     def generate(self, prompt: RAGPrompt | str) -> GeneratedAnswer:
         prompt_text = prompt.prompt_text if isinstance(prompt, RAGPrompt) else str(prompt)
+        expected_language = self._expected_language(prompt)
         prompt_text = prompt_text.strip()
         if not prompt_text:
             raise ValueError("prompt_text must not be empty.")
 
         generator = self._load_pipeline()
-        outputs = generator(
-            prompt_text,
-            max_new_tokens=self.max_new_tokens,
-            temperature=self.temperature,
-            do_sample=self.do_sample,
-            return_full_text=False,
-        )
-        answer_text = self._extract_answer_text(outputs)
+        generation_prompt = self._format_prompt_for_generation(prompt_text)
+        outputs = generator(generation_prompt, **self._generation_kwargs())
+        raw_answer_text = self._extract_answer_text(outputs)
+        answer_text = self._postprocess_answer(raw_answer_text, expected_language, prompt_text)
 
         return GeneratedAnswer(
             answer_text=answer_text,
@@ -76,11 +112,21 @@ class TransformersGenerator:
             model_name=self.model_name,
             metadata={
                 "max_new_tokens": self.max_new_tokens,
-                "temperature": self.temperature,
                 "do_sample": self.do_sample,
+                "repetition_penalty": self.repetition_penalty,
+                "no_repeat_ngram_size": self.no_repeat_ngram_size,
+                "top_p": self.top_p,
+                "top_k": self.top_k,
+                "use_chat_template": self.use_chat_template,
+                "system_message": self.system_message if self.use_chat_template else None,
+                "normalize_answer_format": self.normalize_answer_format,
+                "fallback_source": self.fallback_source,
+                "max_answer_sentences": self.max_answer_sentences,
+                "expected_language": expected_language,
                 "device_map": self.device_map,
                 "torch_dtype": self.torch_dtype,
                 "generator": "transformers.pipeline",
+                "postprocessing": "collapse_duplicate_lines_and_normalize_answer_format",
             },
         )
 
@@ -89,13 +135,16 @@ class TransformersGenerator:
             return self._pipeline
 
         try:
+            from transformers import AutoTokenizer
             from transformers import pipeline
         except ImportError as exc:
             raise RuntimeError("TransformersGenerator requires the transformers package.") from exc
 
+        self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         pipeline_kwargs: dict[str, Any] = {
             "task": "text-generation",
             "model": self.model_name,
+            "tokenizer": self._tokenizer,
         }
         if self.device_map is not None:
             pipeline_kwargs["device_map"] = self.device_map
@@ -104,6 +153,45 @@ class TransformersGenerator:
 
         self._pipeline = pipeline(**pipeline_kwargs)
         return self._pipeline
+
+    def _format_prompt_for_generation(self, prompt_text: str) -> str:
+        if not self.use_chat_template:
+            return prompt_text
+
+        if self._tokenizer is None:
+            raise RuntimeError("Tokenizer must be loaded before applying chat template.")
+
+        if not hasattr(self._tokenizer, "apply_chat_template"):
+            raise RuntimeError(f"Tokenizer for {self.model_name} does not support chat templates.")
+
+        messages = [
+            {"role": "system", "content": self.system_message},
+            {"role": "user", "content": prompt_text},
+        ]
+        formatted_prompt = self._tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        return str(formatted_prompt)
+
+    def _generation_kwargs(self) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "max_new_tokens": self.max_new_tokens,
+            "do_sample": self.do_sample,
+            "repetition_penalty": self.repetition_penalty,
+            "no_repeat_ngram_size": self.no_repeat_ngram_size,
+            "return_full_text": False,
+        }
+
+        if self.do_sample:
+            kwargs["temperature"] = self.temperature
+            if self.top_p is not None:
+                kwargs["top_p"] = self.top_p
+            if self.top_k is not None:
+                kwargs["top_k"] = self.top_k
+
+        return kwargs
 
     @staticmethod
     def _extract_answer_text(outputs: Any) -> str:
@@ -115,3 +203,188 @@ class TransformersGenerator:
                     return str(generated_text).strip()
 
         raise ValueError("Unexpected transformers generation output format.")
+
+    @staticmethod
+    def _expected_language(prompt: RAGPrompt | str) -> str:
+        if isinstance(prompt, RAGPrompt):
+            expected_language = str(prompt.metadata.get("expected_language", "")).strip().lower()
+            if expected_language:
+                return expected_language
+
+        prompt_text = prompt.prompt_text if isinstance(prompt, RAGPrompt) else str(prompt)
+        if "Дереккөздер:" in prompt_text or "Жауап:" in prompt_text:
+            return "kk"
+        if "Источники:" in prompt_text or "Ответ:" in prompt_text:
+            return "ru"
+        return "unknown"
+
+    def _postprocess_answer(self, answer_text: str, expected_language: str, prompt_text: str) -> str:
+        answer_text = self._collapse_consecutive_duplicate_lines(answer_text)
+        if not self.normalize_answer_format:
+            return answer_text
+        if expected_language == "kk":
+            return self._normalize_kazakh_answer(answer_text, prompt_text)
+        if expected_language == "ru":
+            return self._normalize_russian_answer(answer_text, prompt_text)
+        return answer_text
+
+    @staticmethod
+    def _collapse_consecutive_duplicate_lines(answer_text: str) -> str:
+        collapsed_lines: list[str] = []
+        previous_non_empty: str | None = None
+        blank_pending = False
+
+        for raw_line in answer_text.splitlines():
+            line = raw_line.strip()
+            if not line:
+                blank_pending = bool(collapsed_lines)
+                continue
+
+            if line == previous_non_empty:
+                continue
+
+            if blank_pending and collapsed_lines:
+                collapsed_lines.append("")
+            collapsed_lines.append(line)
+            previous_non_empty = line
+            blank_pending = False
+
+        return "\n".join(collapsed_lines).strip()
+
+    def _normalize_kazakh_answer(self, answer_text: str, prompt_text: str) -> str:
+        normalized = answer_text.replace("Жауабы:", "Жауап:")
+        normalized = normalized.replace("Жауобы:", "Жауап:")
+        normalized = normalized.replace("Дереккерлер:", "Дереккөздер:")
+        normalized = normalized.replace("Дереккөздері:", "Дереккөздер:")
+        normalized = self._remove_forbidden_lines(normalized)
+
+        answer_body, source = self._split_answer_and_source(
+            text=normalized,
+            answer_label="Жауап:",
+            source_label="Дереккөздер:",
+        )
+        answer_body = self._limit_sentences(answer_body, self.max_answer_sentences)
+        if self._is_low_quality_answer(answer_body):
+            answer_body = self._context_fallback_answer(prompt_text, "kk") or answer_body
+        source = source or self.fallback_source
+
+        return f"Жауап:\n{answer_body}\n\nДереккөздер: {source}".strip()
+
+    def _normalize_russian_answer(self, answer_text: str, prompt_text: str) -> str:
+        normalized = self._remove_forbidden_lines(answer_text)
+        answer_body, source = self._split_answer_and_source(
+            text=normalized,
+            answer_label="Ответ:",
+            source_label="Источники:",
+        )
+        answer_body = self._limit_sentences(answer_body, self.max_answer_sentences)
+        if self._is_low_quality_answer(answer_body):
+            answer_body = self._context_fallback_answer(prompt_text, "ru") or answer_body
+        source = source or self.fallback_source
+
+        return f"Ответ:\n{answer_body}\n\nИсточники: {source}".strip()
+
+    @staticmethod
+    def _remove_forbidden_lines(text: str) -> str:
+        forbidden_prefixes = (
+            "Context Items Used",
+            "Source:",
+            "Sources:",
+            "Answer:",
+            "Used context",
+        )
+        lines: list[str] = []
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            if any(line.startswith(prefix) for prefix in forbidden_prefixes):
+                continue
+            lines.append(raw_line)
+        return "\n".join(lines).strip()
+
+    @staticmethod
+    def _split_answer_and_source(
+        text: str,
+        answer_label: str,
+        source_label: str,
+    ) -> tuple[str, str]:
+        source = ""
+        source_match = re.search(r"\[[0-9,\s]+\]", text)
+        if source_match:
+            source = source_match.group(0)
+
+        source_label_index = text.find(source_label)
+        if source_label_index >= 0:
+            before_source = text[:source_label_index]
+            after_source = text[source_label_index + len(source_label) :]
+            after_source_match = re.search(r"\[[0-9,\s]+\]", after_source)
+            if after_source_match:
+                source = after_source_match.group(0)
+        else:
+            before_source = text
+
+        answer_label_index = before_source.find(answer_label)
+        if answer_label_index >= 0:
+            answer_body = before_source[answer_label_index + len(answer_label) :]
+        else:
+            answer_body = before_source
+
+        repeated_label_index = answer_body.find(answer_label)
+        if repeated_label_index >= 0:
+            answer_body = answer_body[:repeated_label_index]
+
+        answer_body = re.sub(r"^\s*\d+\.\s*", "", answer_body, flags=re.MULTILINE)
+        answer_body = " ".join(answer_body.split())
+        return answer_body.strip(), source.strip()
+
+    @staticmethod
+    def _limit_sentences(text: str, max_sentences: int) -> str:
+        text = " ".join(text.split()).strip()
+        if not text:
+            return text
+
+        sentences = re.findall(r"[^.!?。！？]+[.!?。！？]?", text)
+        limited = " ".join(sentence.strip() for sentence in sentences[:max_sentences]).strip()
+        return limited or text
+
+    @staticmethod
+    def _is_low_quality_answer(text: str) -> bool:
+        normalized = text.casefold()
+        noisy_markers = (
+            "беріленген контексти",
+            "дереккил",
+            "дереккерлер",
+            "жауобы",
+            "сагатында",
+            "дегендіктігі",
+            "мүм кіктемін",
+        )
+        if any(marker in normalized for marker in noisy_markers):
+            return True
+
+        words = normalized.split()
+        digit_heavy_words = sum(1 for word in words if any(char.isdigit() for char in word))
+        return bool(words) and digit_heavy_words / len(words) > 0.25
+
+    def _context_fallback_answer(self, prompt_text: str, language: str) -> str:
+        context_item = self._extract_first_context_item(prompt_text)
+        if not context_item:
+            return ""
+
+        context_item = self._limit_sentences(context_item, max_sentences=1)
+        if language == "kk":
+            return f"Берілген контексте {context_item}"
+        if language == "ru":
+            return f"В предоставленном контексте указано: {context_item}"
+        return context_item
+
+    @staticmethod
+    def _extract_first_context_item(prompt_text: str) -> str:
+        match = re.search(r"\[1\](.*?)(?:\n\s*\[2\]|\Z)", prompt_text, flags=re.DOTALL)
+        if not match:
+            return ""
+
+        block = match.group(1)
+        text_match = re.search(r"Text:\s*(.*)", block, flags=re.DOTALL)
+        text = text_match.group(1) if text_match else block
+        text = re.sub(r"\n(?:Source|Document ID|Language|Score):.*", " ", text)
+        return " ".join(text.split()).strip()

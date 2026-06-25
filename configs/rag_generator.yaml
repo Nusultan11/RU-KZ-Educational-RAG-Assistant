@@ -2,9 +2,26 @@ generator:
   name: baseline_transformers_generator
   backend: transformers_pipeline
   model_name: Qwen/Qwen2.5-1.5B-Instruct
-  max_new_tokens: 512
+  max_new_tokens: 160
   temperature: 0.2
   do_sample: false
+  repetition_penalty: 1.15
+  no_repeat_ngram_size: 4
   device_map: auto
   torch_dtype: auto
   streaming: false
+
+generation:
+  max_new_tokens: 160
+  do_sample: false
+  repetition_penalty: 1.15
+  no_repeat_ngram_size: 4
+
+prompt_format:
+  use_chat_template: true
+  system_message: "You are a strict multilingual educational RAG assistant. Follow the requested answer language and answer format exactly."
+
+postprocessing:
+  normalize_answer_format: true
+  fallback_source: "[1]"
+  max_answer_sentences: 3

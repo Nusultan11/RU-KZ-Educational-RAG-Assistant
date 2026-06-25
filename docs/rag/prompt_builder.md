@@ -28,29 +28,69 @@ The output is a `RAGPrompt` object with:
 - instruction text;
 - metadata for downstream logging.
 
-## Baseline Prompt Policy
+## Prompt Policy
 
-Current config:
-
-```text
-configs/rag_prompt.yaml
-```
-
-The baseline prompt requires the future generator to:
+The prompt requires the future generator to:
 
 - answer only from retrieved context;
-- answer in the same language as the question;
-- cite retrieved context item numbers;
-- say that the answer is not available when context is insufficient.
+- answer in the expected RU/KZ language;
+- avoid English answers for RU/KZ prompts;
+- avoid repeating the same phrase;
+- avoid explanations outside the required answer format;
+- avoid writing a `Context Items Used` block;
+- cite only source numbers that exist in the retrieved context;
+- use the no-answer format when context is insufficient.
 
-## Current Scope
+## Kazakh Answer Format
+
+For Kazakh contexts, the prompt requires exactly this answer shape:
+
+```text
+Жауап:
+<1-3 қысқа сөйлем. Тек қазақ тілінде. Тек контекст бойынша.>
+
+Дереккөздер: [1]
+```
+
+If the answer is not present in the context:
+
+```text
+Жауап:
+Берілген контексте бұл сұраққа нақты жауап жоқ.
+
+Дереккөздер: []
+```
+
+## Russian Answer Format
+
+For Russian contexts, the prompt requires exactly this answer shape:
+
+```text
+Ответ:
+<1-3 коротких предложения. Только на русском языке. Только по контексту.>
+
+Источники: [1]
+```
+
+If the answer is not present in the context:
+
+```text
+Ответ:
+В предоставленном контексте нет точного ответа на этот вопрос.
+
+Источники: []
+```
+
+## Implementation
 
 Implemented:
 
 - `RAGPrompt`;
 - `PromptBuilder`;
 - deterministic prompt assembly;
-- configurable instruction;
+- language-specific hard rules;
+- required answer format;
+- required no-answer format;
 - source citation instruction;
 - insufficient-context instruction.
 
@@ -61,7 +101,3 @@ Not implemented:
 - streaming;
 - hallucination validation;
 - answer scoring.
-
-## Next Step
-
-The next component can be `generator.py`, which will consume `RAGPrompt` and call a selected LLM.
