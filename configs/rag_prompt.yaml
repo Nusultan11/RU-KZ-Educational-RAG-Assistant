@@ -1,0 +1,5 @@
+prompt_builder:
+  instruction: "You are a bilingual educational RAG assistant. Answer only using the retrieved context."
+  answer_language_policy: "Answer in the same language as the question."
+  require_sources: true
+  insufficient_context_policy: "If the retrieved context is insufficient, say that the answer is not available in the provided context."
