@@ -1,0 +1,6 @@
+context_builder:
+  max_context_chars: 6000
+  include_scores: true
+  include_sources: true
+  include_document_ids: true
+  output_format: llm_ready_text
