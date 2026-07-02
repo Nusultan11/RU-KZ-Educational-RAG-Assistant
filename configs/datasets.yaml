@@ -3,6 +3,17 @@ datasets:
     kazakh:
       name: "shyngys879/Kazakh-Wiki-RAG-Dataset"
       role: "kazakh_retrieval_corpus"
+      load_configurations:
+        - name: pairs
+          builder: csv
+          data_files:
+            train: train.csv
+            validation: dev.csv
+            test: test.csv
+        - name: triplets
+          builder: csv
+          data_files:
+            train: train_triplets.csv
 
     russian:
       name: "kaengreg/sberquad-retrieval"

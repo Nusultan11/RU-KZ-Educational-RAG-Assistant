@@ -1,8 +1,6 @@
 eda:
-  profile_columns: true
-  profile_nulls: true
-  profile_duplicates: true
-  profile_text_lengths: true
-  profile_languages: true
-  output_dir: "artifacts/eda"
-
+  sample_size: 5000
+  text_length_percentiles: [50, 75, 90, 95, 99]
+  output_dir: reports/eda
+  language_detection:
+    enabled: false

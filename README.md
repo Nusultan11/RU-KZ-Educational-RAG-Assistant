@@ -4,40 +4,31 @@
 
 ## Текущий этап
 
-Stage 1: Project Control.
+Stage 2: EDA Foundation.
 
-Сейчас фиксируем:
+На этом этапе создаётся воспроизводимый способ проверить структуру и качество четырёх датасетов до preprocessing, chunking, embeddings и RAG.
 
-- цель проекта;
-- проблему проекта;
-- роли датасетов;
-- EDA-план;
-- конфиг источников данных.
+EDA фиксирует:
 
-Пока не делаем:
+- доступные dataset configs и splits;
+- колонки и количество строк;
+- пустые значения и полные дубли;
+- примеры записей;
+- длины текстовых полей и percentiles;
+- ошибки загрузки отдельных датасетов.
 
-- preprocessing;
-- RAG pipeline;
-- embeddings;
-- chunking;
-- QLoRA;
-- API/UI.
-
-Главная идея:
-
-```text
-Сначала цель, данные и EDA-план. Только потом код.
-```
+Language detection пока отключён в `configs/eda.yaml`. Он будет добавлен отдельным проверяемым шагом.
 
 ## Pipeline
 
 1. Project Control
-2. EDA scripts
-3. Preprocessing
-4. Retrieval baseline
-5. RAG baseline
-6. Evaluation
-7. QLoRA, если реально нужна
+2. EDA Foundation
+3. Data Quality Report
+4. Preprocessing
+5. Retrieval baseline
+6. RAG baseline
+7. Evaluation
+8. QLoRA, только если она обоснована результатами evaluation
 
 ## Stage 1 Files
 
@@ -51,6 +42,42 @@ Stage 1: Project Control.
 ```bash
 python scripts/download_datasets.py --config configs/datasets.yaml --output-dir data/raw/hf
 ```
+
+Локальные dataset snapshots сохраняются в `data/` и не коммитятся.
+
+## Run EDA
+
+```bash
+python scripts/run_eda.py \
+  --datasets-config configs/datasets.yaml \
+  --eda-config configs/eda.yaml
+```
+
+Отчёты сохраняются в:
+
+```text
+reports/eda/
+  kazakh_wiki_rag_dataset.json
+  sberquad_retrieval.json
+  kazakh_instruction_v2.json
+  russian_instructions_2.json
+  summary.md
+```
+
+Профилирование использует детерминированную head-выборку размером `eda.sample_size`. Каждый отчёт отдельно показывает полное количество строк и число проанализированных записей.
+
+## Stage 2 validation
+
+Полный Hugging Face EDA-run выполнен 2026-07-02. Все четыре dataset reports и `summary.md` созданы со статусом `success`.
+
+Реальные структуры:
+
+- KZ retrieval: pairs `anchor/positive/source` и triplets `anchor/positive/negative/source`;
+- RU retrieval: configs `corpus` и `queries`;
+- KZ instruction: `instruction/input/output`;
+- RU instruction: `question/answer`.
+
+Это завершает EDA foundation, но не заменяет следующий Data Quality Report и не разрешает автоматически переходить к preprocessing или RAG tuning.
 
 ## Основное правило
 

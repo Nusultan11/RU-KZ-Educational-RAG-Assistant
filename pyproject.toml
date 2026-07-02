@@ -11,7 +11,13 @@ requires-python = ">=3.11"
 authors = [
   { name = "RUKZ Educational RAG Assistant" }
 ]
-dependencies = []
+dependencies = [
+  "huggingface-hub",
+  "datasets",
+  "pandas",
+  "pyyaml",
+  "tqdm"
+]
 
 [project.optional-dependencies]
 dev = [
@@ -31,4 +37,3 @@ target-version = "py311"
 python_version = "3.11"
 strict = true
 warn_unused_configs = true
-
